@@ -870,7 +870,7 @@ function love.gamepadpressed(joystick, button)
         dpup = "up", dpdown = "down", dpleft = "left", dpright = "right",
         a = "space", b = "escape", x = "lshift", y = "return",
         start = "escape", back = "backspace",
-        rightshoulder = "space",
+        leftshoulder = "lshift", rightshoulder = "space",
     }
     local key = map[button]
     if key then
