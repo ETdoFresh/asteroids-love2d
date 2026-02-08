@@ -604,8 +604,10 @@ function game.update(dt)
     if state.hyperspaceTimer > 0 then state.hyperspaceTimer = state.hyperspaceTimer - dt end
 
     -- Left trigger hyperspace (detect press transition since triggers are axes)
+    -- Guard against right trigger crosstalk triggering hyperspace
     local leftTriggerDown = isGamepadTriggerDown("triggerleft")
-    if leftTriggerDown and not state.leftTriggerWasDown and state.ship.alive then
+    local rightSideActive = isGamepadTriggerDown("triggerright") or isGamepadDown("rightshoulder")
+    if leftTriggerDown and not rightSideActive and not state.leftTriggerWasDown and state.ship.alive then
         hyperspace()
     end
     state.leftTriggerWasDown = leftTriggerDown
@@ -874,6 +876,12 @@ function love.keypressed(key, scancode, isrepeat)
 end
 
 function love.gamepadpressed(joystick, button)
+    -- Guard: if right shoulder/trigger is active, ignore left shoulder hyperspace (controller crosstalk)
+    if button == "leftshoulder" then
+        if joystick:isGamepadDown("rightshoulder") or joystick:getGamepadAxis("triggerright") > 0.5 then
+            return
+        end
+    end
     local map = {
         dpup = "up", dpdown = "down", dpleft = "left", dpright = "right",
         a = "space", b = "escape", x = "lshift", y = "return",
