@@ -192,7 +192,6 @@ local function initGame()
         pauseSelection = 1,
         gameOver = false,
         levelClearTimer = 0,
-        leftTriggerWasDown = false,
         stars = {},
     }
     -- Generate background stars
@@ -602,13 +601,6 @@ function game.update(dt)
     -- Timers
     if state.fireTimer > 0 then state.fireTimer = state.fireTimer - dt end
     if state.hyperspaceTimer > 0 then state.hyperspaceTimer = state.hyperspaceTimer - dt end
-
-    -- Left trigger hyperspace (detect press transition since triggers are axes)
-    local leftTriggerDown = isGamepadTriggerDown("triggerleft")
-    if leftTriggerDown and not state.leftTriggerWasDown and state.ship.alive then
-        hyperspace()
-    end
-    state.leftTriggerWasDown = leftTriggerDown
 
     -- Ship controls (continuous input)
     if state.ship.alive then
