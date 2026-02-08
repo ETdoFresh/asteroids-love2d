@@ -52,6 +52,17 @@ local function isGamepadDown(button)
     return false
 end
 
+-- Helper: check if a gamepad trigger axis is pressed (triggers are axes, not buttons)
+local function isGamepadTriggerDown(trigger)
+    local joysticks = love.joystick.getJoysticks()
+    for _, js in ipairs(joysticks) do
+        if js:isGamepad() and js:getGamepadAxis(trigger) > 0.5 then
+            return true
+        end
+    end
+    return false
+end
+
 -- Helper: deep copy
 local function deepCopy(orig)
     if type(orig) ~= 'table' then return orig end
@@ -181,6 +192,7 @@ local function initGame()
         pauseSelection = 1,
         gameOver = false,
         levelClearTimer = 0,
+        leftTriggerWasDown = false,
         stars = {},
     }
     -- Generate background stars
@@ -591,6 +603,13 @@ function game.update(dt)
     if state.fireTimer > 0 then state.fireTimer = state.fireTimer - dt end
     if state.hyperspaceTimer > 0 then state.hyperspaceTimer = state.hyperspaceTimer - dt end
 
+    -- Left trigger hyperspace (detect press transition since triggers are axes)
+    local leftTriggerDown = isGamepadTriggerDown("triggerleft")
+    if leftTriggerDown and not state.leftTriggerWasDown and state.ship.alive then
+        hyperspace()
+    end
+    state.leftTriggerWasDown = leftTriggerDown
+
     -- Ship controls (continuous input)
     if state.ship.alive then
         state.ship.thrusting = false
@@ -605,7 +624,7 @@ function game.update(dt)
         if love.keyboard.isDown("right") or love.keyboard.isDown("d") or isGamepadDown("dpright") then
             state.ship.angle = state.ship.angle + SHIP_ROTATE_SPEED * dt
         end
-        if love.keyboard.isDown("space") or isGamepadDown("a") or isGamepadDown("rightshoulder") then
+        if love.keyboard.isDown("space") or isGamepadDown("a") or isGamepadDown("rightshoulder") or isGamepadTriggerDown("triggerright") then
             fireBullet()
         end
 
