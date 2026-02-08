@@ -41,6 +41,17 @@ local COLORS = {
 -- Game state
 local state = nil
 
+-- Helper: check if a gamepad button is held on any connected gamepad
+local function isGamepadDown(button)
+    local joysticks = love.joystick.getJoysticks()
+    for _, js in ipairs(joysticks) do
+        if js:isGamepad() and js:isGamepadDown(button) then
+            return true
+        end
+    end
+    return false
+end
+
 -- Helper: deep copy
 local function deepCopy(orig)
     if type(orig) ~= 'table' then return orig end
@@ -583,18 +594,18 @@ function game.update(dt)
     -- Ship controls (continuous input)
     if state.ship.alive then
         state.ship.thrusting = false
-        if love.keyboard.isDown("up") or love.keyboard.isDown("w") then
+        if love.keyboard.isDown("up") or love.keyboard.isDown("w") or isGamepadDown("dpup") then
             state.ship.vx = state.ship.vx + math.cos(state.ship.angle) * SHIP_ACCEL * dt
             state.ship.vy = state.ship.vy + math.sin(state.ship.angle) * SHIP_ACCEL * dt
             state.ship.thrusting = true
         end
-        if love.keyboard.isDown("left") or love.keyboard.isDown("a") then
+        if love.keyboard.isDown("left") or love.keyboard.isDown("a") or isGamepadDown("dpleft") then
             state.ship.angle = state.ship.angle - SHIP_ROTATE_SPEED * dt
         end
-        if love.keyboard.isDown("right") or love.keyboard.isDown("d") then
+        if love.keyboard.isDown("right") or love.keyboard.isDown("d") or isGamepadDown("dpright") then
             state.ship.angle = state.ship.angle + SHIP_ROTATE_SPEED * dt
         end
-        if love.keyboard.isDown("space") then
+        if love.keyboard.isDown("space") or isGamepadDown("a") or isGamepadDown("rightshoulder") then
             fireBullet()
         end
 
