@@ -24,6 +24,7 @@ local INITIAL_ASTEROIDS = 4
 local INVULN_TIME = 3
 local RESPAWN_DELAY = 1.5
 local HYPERSPACE_COOLDOWN = 3
+local EXTRA_LIFE_SCORE = 10000
 local THRUST_PARTICLE_RATE = 30
 
 local COLORS = {
@@ -194,6 +195,7 @@ local function initGame()
         levelClearTimer = 0,
         leftTriggerWasDown = false,
         stars = {},
+        nextExtraLife = EXTRA_LIFE_SCORE,
     }
     -- Generate background stars
     for i = 1, 100 do
@@ -285,6 +287,12 @@ local function destroyAsteroid(index)
     local ast = state.asteroids[index]
     state.score = state.score + (ASTEROID_SCORES[ast.size] or 0)
     if state.score > state.highScore then state.highScore = state.score end
+
+    -- Award extra life every EXTRA_LIFE_SCORE points
+    while state.score >= state.nextExtraLife do
+        state.lives = state.lives + 1
+        state.nextExtraLife = state.nextExtraLife + EXTRA_LIFE_SCORE
+    end
 
     -- Explosion particles
     local count = ast.size == "large" and 15 or (ast.size == "medium" and 10 or 6)
