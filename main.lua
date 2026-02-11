@@ -161,6 +161,40 @@ local function createExplosion(x, y, count, speed, lifetime)
     return particles
 end
 
+-- Create debris fragments for ship explosion
+local function createDebris(x, y, count, speed, lifetime)
+    local debris = {}
+    for i = 1, count do
+        local angle = love.math.random() * math.pi * 2
+        local spd = (0.5 + love.math.random() * 0.5) * speed
+
+        -- Generate a random fragment shape (triangular or quad)
+        local numVerts = love.math.random(3, 4)
+        local verts = {}
+        local baseSize = 3 + love.math.random() * 5
+        for j = 1, numVerts do
+            local vertAngle = (j - 1) / numVerts * math.pi * 2
+            local r = baseSize * (0.6 + love.math.random() * 0.4)
+            table.insert(verts, math.cos(vertAngle) * r)
+            table.insert(verts, math.sin(vertAngle) * r)
+        end
+
+        table.insert(debris, {
+            x = x,
+            y = y,
+            vx = math.cos(angle) * spd,
+            vy = math.sin(angle) * spd,
+            life = lifetime * (0.7 + love.math.random() * 0.3),
+            maxLife = lifetime,
+            size = 0.8 + love.math.random() * 0.6,
+            rotation = love.math.random() * math.pi * 2,
+            rotSpeed = (love.math.random() - 0.5) * 8,
+            verts = verts,
+        })
+    end
+    return debris
+end
+
 -- Initialize game state
 local function initGame()
     local w = love.graphics.getWidth()
@@ -182,6 +216,7 @@ local function initGame()
         asteroids = spawnAsteroids(INITIAL_ASTEROIDS, w, h),
         particles = {},
         thrustParticles = {},
+        debris = {},
         score = 0,
         highScore = 0,
         lives = 3,
@@ -325,6 +360,9 @@ local function checkShipCollision()
             state.ship.thrusting = false
             local p = createExplosion(state.ship.x, state.ship.y, 20, 150, 1.0)
             for _, part in ipairs(p) do table.insert(state.particles, part) end
+            -- Create debris fragments
+            local d = createDebris(state.ship.x, state.ship.y, 12, 120, 1.5)
+            for _, frag in ipairs(d) do table.insert(state.debris, frag) end
             state.lives = state.lives - 1
             if state.lives <= 0 then
                 state.gameOver = true
@@ -446,6 +484,24 @@ local function drawParticles()
         local alpha = p.life / p.maxLife
         love.graphics.setColor(COLORS.ship_thrust[1], COLORS.ship_thrust[2] * alpha, COLORS.ship_thrust[3] * alpha * 0.5, alpha * 0.8)
         love.graphics.circle("fill", p.x, p.y, p.size * alpha)
+    end
+end
+
+local function drawDebris()
+    for _, d in ipairs(state.debris) do
+        local alpha = d.life / d.maxLife
+        love.graphics.push()
+        love.graphics.translate(d.x, d.y)
+        love.graphics.rotate(d.rotation)
+        love.graphics.scale(d.size, d.size)
+
+        -- Draw fragment with ship color but fading
+        love.graphics.setColor(COLORS.ship[1] * 0.9, COLORS.ship[2] * 0.8, COLORS.ship[3] * 0.7, alpha)
+        if #d.verts >= 6 then
+            love.graphics.polygon("fill", d.verts)
+        end
+
+        love.graphics.pop()
     end
 end
 
@@ -738,6 +794,20 @@ function game.update(dt)
             i = i + 1
         end
     end
+    -- Update debris
+    i = 1
+    while i <= #state.debris do
+        local d = state.debris[i]
+        d.x = d.x + d.vx * dt
+        d.y = d.y + d.vy * dt
+        d.rotation = d.rotation + d.rotSpeed * dt
+        d.life = d.life - dt
+        if d.life <= 0 then
+            table.remove(state.debris, i)
+        else
+            i = i + 1
+        end
+    end
 
     -- Collisions
     checkBulletCollisions()
@@ -761,6 +831,7 @@ function game.draw()
     else
         drawStars()
         drawParticles()
+        drawDebris()
         drawBullets()
         for _, ast in ipairs(state.asteroids) do
             drawAsteroid(ast)
