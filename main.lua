@@ -841,7 +841,6 @@ function game.update(dt)
             i = i + 1
         end
     end
-
     -- Update debris
     i = 1
     while i <= #state.debris do
