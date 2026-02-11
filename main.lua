@@ -161,37 +161,90 @@ local function createExplosion(x, y, count, speed, lifetime)
     return particles
 end
 
--- Create debris fragments for ship explosion
-local function createDebris(x, y, count, speed, lifetime)
+-- Create ship debris (line segments from the ship's hull that scatter outward)
+local function createShipDebris(ship)
     local debris = {}
-    for i = 1, count do
-        local angle = love.math.random() * math.pi * 2
-        local spd = (0.5 + love.math.random() * 0.5) * speed
+    local s = SHIP_SIZE
+    local angle = ship.angle
 
-        -- Generate a random fragment shape (triangular or quad)
-        local numVerts = love.math.random(3, 4)
-        local verts = {}
-        local baseSize = 3 + love.math.random() * 5
-        for j = 1, numVerts do
-            local vertAngle = (j - 1) / numVerts * math.pi * 2
-            local r = baseSize * (0.6 + love.math.random() * 0.4)
-            table.insert(verts, math.cos(vertAngle) * r)
-            table.insert(verts, math.sin(vertAngle) * r)
-        end
+    -- Ship polygon vertices in local space (same as drawShip):
+    -- tip, left-rear, center-rear, right-rear
+    local localVerts = {
+        {s, 0},                     -- tip
+        {-s * 0.7, -s * 0.6},      -- left-rear
+        {-s * 0.4, 0},             -- center-rear
+        {-s * 0.7, s * 0.6},       -- right-rear
+    }
+
+    -- The ship polygon edges: tip->left, left->center, center->right, right->tip
+    local edges = {
+        {1, 2}, {2, 3}, {3, 4}, {4, 1},
+    }
+
+    local cos_a = math.cos(angle)
+    local sin_a = math.sin(angle)
+
+    for _, edge in ipairs(edges) do
+        local v1 = localVerts[edge[1]]
+        local v2 = localVerts[edge[2]]
+
+        -- Midpoint in local space
+        local mx = (v1[1] + v2[1]) / 2
+        local my = (v1[2] + v2[2]) / 2
+
+        -- Transform midpoint to world space for debris center position
+        local wx = ship.x + cos_a * mx - sin_a * my
+        local wy = ship.y + sin_a * mx + cos_a * my
+
+        -- Half-length of the edge segment (endpoints relative to debris center)
+        local hx = (v2[1] - v1[1]) / 2
+        local hy = (v2[2] - v1[2]) / 2
+
+        -- Outward velocity: inherit some ship velocity + scatter from center
+        local dx = wx - ship.x
+        local dy = wy - ship.y
+        local d = math.sqrt(dx * dx + dy * dy)
+        if d < 1 then d = 1 end
+        local scatterSpeed = 40 + love.math.random() * 60
+        local vx = ship.vx * 0.5 + (dx / d) * scatterSpeed + (love.math.random() - 0.5) * 30
+        local vy = ship.vy * 0.5 + (dy / d) * scatterSpeed + (love.math.random() - 0.5) * 30
 
         table.insert(debris, {
-            x = x,
-            y = y,
-            vx = math.cos(angle) * spd,
-            vy = math.sin(angle) * spd,
-            life = lifetime * (0.7 + love.math.random() * 0.3),
-            maxLife = lifetime,
-            size = 0.8 + love.math.random() * 0.6,
-            rotation = love.math.random() * math.pi * 2,
-            rotSpeed = (love.math.random() - 0.5) * 8,
-            verts = verts,
+            x = wx,
+            y = wy,
+            vx = vx,
+            vy = vy,
+            angle = angle,               -- initial rotation matches ship
+            rotSpeed = (love.math.random() - 0.5) * 6, -- spin
+            x1 = hx, y1 = hy,            -- endpoint 1 relative to center (local)
+            x2 = -hx, y2 = -hy,          -- endpoint 2 relative to center (local)
+            life = 1.5 + love.math.random() * 1.0,
+            maxLife = 2.5,
         })
     end
+
+    -- Add a few smaller random fragments for extra visual punch
+    for i = 1, 4 do
+        local fragAngle = love.math.random() * math.pi * 2
+        local fragLen = s * (0.2 + love.math.random() * 0.3)
+        local spawnDist = love.math.random() * s * 0.5
+        local sx = ship.x + math.cos(fragAngle) * spawnDist
+        local sy = ship.y + math.sin(fragAngle) * spawnDist
+        local scatterSpeed = 50 + love.math.random() * 80
+        table.insert(debris, {
+            x = sx,
+            y = sy,
+            vx = ship.vx * 0.3 + math.cos(fragAngle) * scatterSpeed,
+            vy = ship.vy * 0.3 + math.sin(fragAngle) * scatterSpeed,
+            angle = love.math.random() * math.pi * 2,
+            rotSpeed = (love.math.random() - 0.5) * 8,
+            x1 = fragLen, y1 = 0,
+            x2 = -fragLen, y2 = 0,
+            life = 1.0 + love.math.random() * 1.0,
+            maxLife = 2.0,
+        })
+    end
+
     return debris
 end
 
@@ -360,9 +413,8 @@ local function checkShipCollision()
             state.ship.thrusting = false
             local p = createExplosion(state.ship.x, state.ship.y, 20, 150, 1.0)
             for _, part in ipairs(p) do table.insert(state.particles, part) end
-            -- Create debris fragments
-            local d = createDebris(state.ship.x, state.ship.y, 12, 120, 1.5)
-            for _, frag in ipairs(d) do table.insert(state.debris, frag) end
+            local d = createShipDebris(state.ship)
+            for _, piece in ipairs(d) do table.insert(state.debris, piece) end
             state.lives = state.lives - 1
             if state.lives <= 0 then
                 state.gameOver = true
@@ -485,23 +537,18 @@ local function drawParticles()
         love.graphics.setColor(COLORS.ship_thrust[1], COLORS.ship_thrust[2] * alpha, COLORS.ship_thrust[3] * alpha * 0.5, alpha * 0.8)
         love.graphics.circle("fill", p.x, p.y, p.size * alpha)
     end
-end
-
-local function drawDebris()
+    -- Draw ship debris as rotating line segments
     for _, d in ipairs(state.debris) do
         local alpha = d.life / d.maxLife
-        love.graphics.push()
-        love.graphics.translate(d.x, d.y)
-        love.graphics.rotate(d.rotation)
-        love.graphics.scale(d.size, d.size)
-
-        -- Draw fragment with ship color but fading
-        love.graphics.setColor(COLORS.ship[1] * 0.9, COLORS.ship[2] * 0.8, COLORS.ship[3] * 0.7, alpha)
-        if #d.verts >= 6 then
-            love.graphics.polygon("fill", d.verts)
-        end
-
-        love.graphics.pop()
+        love.graphics.setColor(COLORS.ship[1], COLORS.ship[2], COLORS.ship[3], alpha)
+        local cos_a = math.cos(d.angle)
+        local sin_a = math.sin(d.angle)
+        -- Transform local endpoints by debris rotation
+        local ax = d.x + cos_a * d.x1 - sin_a * d.y1
+        local ay = d.y + sin_a * d.x1 + cos_a * d.y1
+        local bx = d.x + cos_a * d.x2 - sin_a * d.y2
+        local by = d.y + sin_a * d.x2 + cos_a * d.y2
+        love.graphics.line(ax, ay, bx, by)
     end
 end
 
@@ -800,7 +847,10 @@ function game.update(dt)
         local d = state.debris[i]
         d.x = d.x + d.vx * dt
         d.y = d.y + d.vy * dt
-        d.rotation = d.rotation + d.rotSpeed * dt
+        d.angle = d.angle + d.rotSpeed * dt
+        -- Slow down gradually
+        d.vx = d.vx * 0.99
+        d.vy = d.vy * 0.99
         d.life = d.life - dt
         if d.life <= 0 then
             table.remove(state.debris, i)
@@ -831,7 +881,6 @@ function game.draw()
     else
         drawStars()
         drawParticles()
-        drawDebris()
         drawBullets()
         for _, ast in ipairs(state.asteroids) do
             drawAsteroid(ast)
